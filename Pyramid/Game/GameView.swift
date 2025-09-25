@@ -42,7 +42,7 @@ struct GameView: View {
                             .resizable()
                             .overlay {
                                 HStack {
-                                    Text("200")
+                                    Text("\(ShopManager.shared.getCoins())")
                                         .CustomFont(size: 17, color: Color(red: 255/255, green: 218/255, blue: 1/255))
                                         .offset(y: 2)
                                     
