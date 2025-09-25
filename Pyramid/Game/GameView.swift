@@ -429,7 +429,8 @@ class CatchGameSpriteKit: SKScene, SKPhysicsContactDelegate {
         movingNode.size = nodeSize
         movingNode.position = CGPoint(x: size.width / 2, y: 60)
         
-        movingNode.physicsBody = SKPhysicsBody(rectangleOf: nodeSize)
+        let texture = SKTexture(imageNamed: ShopManager.shared.getSelectedPlatform()?.imageName ?? "platform1")
+        movingNode.physicsBody = SKPhysicsBody(texture: texture, size: movingNode.size)
         movingNode.physicsBody?.isDynamic = false
         movingNode.physicsBody?.categoryBitMask = PhysicsCategory.platform
         movingNode.physicsBody?.contactTestBitMask = PhysicsCategory.ball
@@ -442,7 +443,7 @@ class CatchGameSpriteKit: SKScene, SKPhysicsContactDelegate {
         let ballRadius: CGFloat = 20
         ballNode = SKSpriteNode(imageNamed: ShopManager.shared.getSelectedBall()?.imageName ?? "ball1")
         ballNode.size = CGSize(width: ballRadius * 2, height: ballRadius * 2.9)
-        ballNode.position = CGPoint(x: movingNode.position.x, y: movingNode.position.y + movingNode.size.height/2 + ballRadius)
+        ballNode.position = CGPoint(x: movingNode.position.x, y: size.height - 100)
         
         ballNode.physicsBody = SKPhysicsBody(circleOfRadius: ballRadius / 2)
         ballNode.physicsBody?.affectedByGravity = false
@@ -492,7 +493,8 @@ class CatchGameSpriteKit: SKScene, SKPhysicsContactDelegate {
             obstacle.size = obstacleSize
             obstacle.position = position
 
-            obstacle.physicsBody = SKPhysicsBody(rectangleOf: obstacleSize)
+            let texture = SKTexture(imageNamed: "obstacle")
+            obstacle.physicsBody = SKPhysicsBody(texture: texture, size: obstacle.size)
             obstacle.physicsBody?.isDynamic = false
             obstacle.physicsBody?.categoryBitMask = PhysicsCategory.obstacle
             obstacle.physicsBody?.contactTestBitMask = PhysicsCategory.ball
@@ -501,7 +503,6 @@ class CatchGameSpriteKit: SKScene, SKPhysicsContactDelegate {
             addChild(obstacle)
         }
 
-        // Сохраняем positions для использования в createStars, например, как свойство класса
         self.obstaclesPositions = obstaclesPositions
     }
     
@@ -521,16 +522,18 @@ class CatchGameSpriteKit: SKScene, SKPhysicsContactDelegate {
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if !isBallLaunched && (game?.isPlaying ?? true) {
-            ballNode.physicsBody?.affectedByGravity = true
-            ballNode.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 300))
-            isBallLaunched = true
+        guard let gameData = game else { return }
+        
+        if !isBallLaunched && gameData.isPlaying && !gameData.isPause {
+            resetBallPosition()
             
-            if let gameData = game {
-                if gameData.lives == 5 && gameData.timerText == "03:00" {
-                    gameData.startTimer()
-                }
+            ballNode.physicsBody?.affectedByGravity = true
+
+            if gameData.lives == 5 && gameData.timerText == "03:00" {
+                gameData.startTimer()
             }
+
+            isBallLaunched = true
         }
     }
     
@@ -543,44 +546,52 @@ class CatchGameSpriteKit: SKScene, SKPhysicsContactDelegate {
     }
     
     func resetBallPosition() {
-        ballNode.position = CGPoint(x: movingNode.position.x, y: movingNode.position.y + movingNode.size.height / 2 + ballNode.size.height / 2)
+        let startX = size.width / 2
+        let startY = size.height - 100
+        ballNode.position = CGPoint(x: startX, y: startY)
         ballNode.physicsBody?.velocity = .zero
         ballNode.physicsBody?.angularVelocity = 0
-        ballNode.physicsBody?.affectedByGravity = false
+        ballNode.physicsBody?.affectedByGravity = true
+        isBallLaunched = false
     }
-    
+
     func didBegin(_ contact: SKPhysicsContact) {
-           let categories = contact.bodyA.categoryBitMask | contact.bodyB.categoryBitMask
-           
-           if categories & PhysicsCategory.ball != 0 {
-               if categories & PhysicsCategory.bottomLine != 0 {
-                   ballNode.physicsBody?.velocity = .zero
-                   ballNode.physicsBody?.affectedByGravity = false
-                   isBallLaunched = false
-                   
-                   game?.loseLife()
-                   
-                   if game?.isPlaying == false {
-                       self.isPaused = true
-                       if game?.starsCollected == game?.totalStars {
-                           game?.isBonus = true
-                       } else {
-                           game?.isLose = true
-                       }
-                       game?.stopTimer()
-                   } else {
-                       shouldResetBall = true
-                   }
-               } else if categories & PhysicsCategory.star != 0 {
-                   let starBody = contact.bodyA.categoryBitMask == PhysicsCategory.star ? contact.bodyA.node : contact.bodyB.node
-                   starBody?.removeFromParent()
-                   game?.collectStar()
-               } else if categories & PhysicsCategory.coin != 0 {
-                   let coinBody = contact.bodyA.categoryBitMask == PhysicsCategory.coin ? contact.bodyA.node : contact.bodyB.node
-                   coinBody?.removeFromParent()
-                   coinNode = nil
-                   game?.collectCoin()
-               }
-           }
-       }
+        let categories = contact.bodyA.categoryBitMask | contact.bodyB.categoryBitMask
+
+        if categories & PhysicsCategory.ball != 0 {
+            if categories & PhysicsCategory.bottomLine != 0 {
+                ballNode.physicsBody?.velocity = .zero
+                ballNode.physicsBody?.affectedByGravity = false
+                isBallLaunched = false
+
+                game?.loseLife()
+
+                if game?.lives == 0 {
+                    game?.isPlaying = false
+                    self.isPaused = true
+                    game?.isLose = true
+                    game?.stopTimer()
+                } else {
+                    shouldResetBall = true
+                }
+            } else if categories & PhysicsCategory.star != 0 {
+                let starBody = contact.bodyA.categoryBitMask == PhysicsCategory.star ? contact.bodyA.node : contact.bodyB.node
+                starBody?.removeFromParent()
+                game?.collectStar()
+
+                if game?.starsCollected == game?.totalStars {
+                    game?.isPlaying = false
+                    self.isPaused = true
+                    game?.isBonus = true
+                    game?.stopTimer()
+                }
+            } else if categories & PhysicsCategory.coin != 0 {
+                let coinBody = contact.bodyA.categoryBitMask == PhysicsCategory.coin ? contact.bodyA.node : contact.bodyB.node
+                coinBody?.removeFromParent()
+                coinNode = nil
+                game?.collectCoin()
+            }
+        }
+    }
+
 }
