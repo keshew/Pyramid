@@ -5,6 +5,8 @@ struct MainView: View {
     @State var isLevel = false
     @State var isPlay = false
     @State var isShop = false
+    @ObservedObject private var soundManager = SoundManager.shared
+    
     var body: some View {
         ZStack {
             ZStack(alignment: .bottom) {
@@ -40,9 +42,10 @@ struct MainView: View {
                         .frame(width: 100, height: 60)
                     
                     Button(action: {
-                        mainModel.isAudio.toggle()
+                        mainModel.isAudio.toggle() // if needed for your UI state
+                        soundManager.musicControl()
                     }) {
-                        Image(mainModel.isAudio ? .soundOn : .soundOff)
+                        Image(soundManager.isMusicEnabled ? .soundOn : .soundOff)
                             .resizable()
                             .frame(width: 65, height: 60)
                     }
